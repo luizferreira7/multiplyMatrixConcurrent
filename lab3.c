@@ -6,11 +6,10 @@
 
 #define F_OK 0
 
-//#define MODE CONCURRENT
-
 #define CONCURRENT 'c'
 #define SEQUENTIAL 's'
 
+// Define que caso modo de execução não seja passado executara em concorrente como default
 #ifndef MODE
 #define MODE CONCURRENT
 #endif
@@ -40,6 +39,7 @@ typedef struct {
 // Metodo que multiplica duas matrizes de dimensões NxM por MxK
 void multiplyMatrix(Matrix * matrixA, Matrix * matrixB, Matrix * matrixC, int start, int increment) {
 
+    // São passados o inicio e o valor de incremento para que código possa ser executado de forma concorrente pela thread
     for (int i = start; i < matrixC -> rows; i += increment) {
         for (int j = 0; j < matrixC -> cols; j++) {
             matrixC -> matrixArray[i * matrixB -> cols + j] = 0;
@@ -53,6 +53,7 @@ void multiplyMatrix(Matrix * matrixA, Matrix * matrixB, Matrix * matrixC, int st
 // Metodo que lê a matriz a partir de um arquivo binário
 Matrix *readMatrixFromFile(char * filename) {
 
+    // Abre arquivo para leitura e verifica se existe
     FILE * file = fopen(filename, "rb");
     if(!file) {
         fprintf(stderr, "Erro na abertura do arquivo\n");
@@ -64,30 +65,35 @@ Matrix *readMatrixFromFile(char * filename) {
 
     size_t ret;
 
+    // Le o numero de linhas
     ret = fread(&rows, sizeof(int), 1, file);
     if(!ret) {
         fprintf(stderr, "Erro de leitura das dimensoes da matrix arquivo \n");
         return NULL;
     }
 
+    // Le o numero de colunas
     ret = fread(&cols, sizeof(int), 1, file);
     if(!ret) {
         fprintf(stderr, "Erro de leitura das dimensoes da matrix arquivo \n");
         return NULL;
     }
 
+    // Aloca memoria para poder ler os dados da matriz
     float * matrixArray = (float*) malloc(sizeof(float) * rows * cols);
     if(!matrixArray) {
         fprintf(stderr, "Erro de alocao da memoria da matrix\n");
         return NULL;
     }
 
+    // Le os dados da matriz e armazena no array
     ret = fread(matrixArray, sizeof(float), rows * cols , file);
     if(ret < rows * cols) {
         fprintf(stderr, "Erro de leitura dos elementos da matrix\n");
         return NULL;
     }
 
+    // Aloca mamoria para struct da matriz
     Matrix *matrix = malloc(sizeof (*matrix));
     if (!matrix) {
         fprintf(stderr, "Erro de alocao da memoria da matrix\n");
@@ -103,6 +109,7 @@ Matrix *readMatrixFromFile(char * filename) {
     return matrix;
 }
 
+// Imprime matriz no console
 void printMatrix(Matrix *matrix) {
     for(int i=0; i<matrix -> rows; i++) {
         for(int j=0; j<matrix -> cols; j++)
@@ -111,7 +118,7 @@ void printMatrix(Matrix *matrix) {
     }
 }
 
-// Metodo que multiplica duas matrizes de dimensões NxM por MxK de forma concorrente
+// Metodo que multiplica a parte definida para esta thread
 void *multiplyMatrixThread(void *args) {
 
 #ifdef PRINT_THREAD
@@ -136,6 +143,7 @@ void *multiplyMatrixThread(void *args) {
     pthread_exit(NULL);
 }
 
+// Escreve matriz para arquivo binario
 void writeMatrixToFile(Matrix * matrix, char * filename) {
 
     size_t ret;
@@ -161,6 +169,7 @@ void writeMatrixToFile(Matrix * matrix, char * filename) {
     fclose(file);
 }
 
+// Verifica se arquivo existe
 int checkFile(char *filename) {
     if (access(filename, F_OK) == 0) {
         return 1;
@@ -191,7 +200,7 @@ void writeToCSV(char *filename, char tipo, int numThreads, int rows, int cols, d
     fclose(file);
 }
 
-// Metodo main que executa a multiplicação de matrizes de forma concorrente
+// Metodo main que executa a multiplicação de matrizes de forma concorrente ou sequencial
 int main(int argc, char*argv[]) {
 
     printf("Modo de execução: %c\n\n", MODE);
@@ -200,6 +209,7 @@ int main(int argc, char*argv[]) {
     double startInit, finishInit, elapsedInit;
     GET_TIME(startInit);
 
+    // Altera modo para concorrente
 #if MODE == CONCURRENT
     // Verifica argumentos passados para o programa
     if(argc < 3) {
@@ -209,6 +219,7 @@ int main(int argc, char*argv[]) {
     numThreads = atoi(argv[3]);
 #endif
 
+    // Altera modo para sequencial
 #if MODE == SEQUENTIAL
     // Verifica argumentos passados para o programa
     if(argc < 2) {
