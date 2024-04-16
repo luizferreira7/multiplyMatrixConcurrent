@@ -273,14 +273,12 @@ int main(int argc, char*argv[]) {
 #if MODE == CONCURRENT
     // Prepara as threads
     pthread_t tid_sistema[numThreads];
-    int threads[numThreads];
 
     // Cria as threads que executaram a multiplicação de forma concorrente
     for (int i = 0; i < numThreads; i++) {
 
         // Prepara argumentos passados para cada thread
         ThreadArgs * args = malloc(sizeof (ThreadArgs));
-        threads[i] = i;
         args->id = i;
         args->numThreads = numThreads;
         args->matrixA = matrixA;
@@ -315,8 +313,18 @@ int main(int argc, char*argv[]) {
     printMatrix(matrixC);
 #endif
 
+    char * filename;
+
+#if MODE == CONCURRENT
+    filename = "concMatrixC";
+#endif
+
+#if MODE == SEQUENTIAL
+    filename = "seqMatrizC";
+#endif
+
     // Escreve matriz resultado para arquivo
-    writeMatrixToFile(matrixC, "concMatrixC");
+    writeMatrixToFile(matrixC, filename);
 
     // Libera memoria alcoada anteriormente
     free(mArray);
