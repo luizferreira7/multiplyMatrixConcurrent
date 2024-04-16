@@ -1,13 +1,16 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <time.h>
 #include <pthread.h>
+#include <unistd.h>
+#include "timer.h"
+
+#define F_OK 0
 
 // Caso queira imprimir as matrizes descomentar
-// #define PRINT
+// #define PRINT_MATRIX
 
-// Define tamanho de 10ˆ9 para calculo de tempo (conversao de nanosegundos)
-#define BILLION 1000000000
+// Caso queira imprimir a duração de cada Thread
+//#define PRINT_THREAD
 
 // Estrutura usada para representar uma matriz
 typedef struct {
@@ -24,20 +27,6 @@ typedef struct {
     Matrix matrixB;
     Matrix *matrixC;
 } ThreadArgs;
-
-// Metodo que multiplica duas matrizes de dimensões NxM por MxK de forma concorrente
-void multiplyMatrixConcurrent(Matrix matrixA, Matrix matrixB, Matrix * matrixC, int id, int numThreads) {
-
-    // Cada thread multiplica n linhas da matriz, distribuidas alternadamente
-    for (int i = id; i < matrixC -> rows; i += numThreads) {
-        for (int j = 0; j < matrixC -> cols; j++) {
-            matrixC -> matrixArray[i * matrixB.cols + j] = 0;
-            for (int k = 0; k < matrixA.cols; k++) {
-                matrixC -> matrixArray[i * matrixB.cols + j] += matrixA.matrixArray[i * matrixA. cols + k] * matrixB. matrixArray[k * matrixB. cols + j];
-            }
-        }
-    }
-}
 
 // Metodo que lê a matriz a partir de um arquivo binário
 Matrix *readMatrixFromFile(char * filename) {
@@ -100,21 +89,40 @@ void printMatrix(Matrix *matrix) {
     }
 }
 
+// Metodo que multiplica duas matrizes de dimensões NxM por MxK de forma concorrente
 void *multiplyMatrixThread(void *args) {
-    struct timespec start, end;
 
-    clock_gettime(CLOCK_MONOTONIC, &start);
+#ifdef PRINT_THREAD
+    double start, end, elapsed;
+
+    GET_TIME(start);
+#endif
 
     ThreadArgs *tArgs = (ThreadArgs *)args;
 
-    multiplyMatrixConcurrent(tArgs -> matrixA, tArgs -> matrixB, tArgs -> matrixC, tArgs -> id, tArgs -> numThreads);
+    int id = tArgs -> id;
+    int numThreads = tArgs -> numThreads;
+    Matrix matrixA = tArgs -> matrixA;
+    Matrix matrixB = tArgs -> matrixB;
+    Matrix *matrixC = tArgs -> matrixC;
 
-    clock_gettime(CLOCK_MONOTONIC, &end);
+    // Cada thread multiplica n linhas da matriz, distribuidas alternadamente
+    for (int i = id; i < matrixC -> rows; i += numThreads) {
+        for (int j = 0; j < matrixC -> cols; j++) {
+            matrixC -> matrixArray[i * matrixB.cols + j] = 0;
+            for (int k = 0; k < matrixA.cols; k++) {
+                matrixC -> matrixArray[i * matrixB.cols + j] += matrixA.matrixArray[i * matrixA. cols + k] * matrixB. matrixArray[k * matrixB. cols + j];
+            }
+        }
+    }
 
-    int64_t diff = ((int64_t)end.tv_sec - (int64_t)start.tv_sec) * (int64_t) BILLION
-                   + ((int64_t)end.tv_nsec - (int64_t)start.tv_nsec);
+#ifdef PRINT_THREAD
+    GET_TIME(end);
 
-    printf("--Thread %d terminou a execução. Tempo: %f segundos\n", tArgs -> id, (float)  diff / BILLION);
+    elapsed = end - start;
+
+    printf("--Thread %d terminou a execução. Tempo: %lf segundos\n", tArgs -> id, elapsed);
+#endif
 
     free(args);
     pthread_exit(NULL);
@@ -145,42 +153,82 @@ void writeMatrixToFile(Matrix * matrix, char * filename) {
     fclose(file);
 }
 
+int checkFile(char *filename) {
+    if (access(filename, F_OK) == 0) {
+        return 1;
+    }
+
+    return 0;
+}
+
+// Escreve os resultados no CSV
+void writeToCSV(char *filename, char tipo, int numThreads, int rows, int cols, double init, double process, double end) {
+
+    char *header = "dimensao,tipo,threads,inicialização,processamento,finalização";
+
+    // Verifica se o arquivo existe
+    int fileExists = checkFile(filename);
+
+    // Prepara arquivo para escrita no de append
+    FILE *file;
+    file = fopen(filename,"a");
+
+    // Caso o arquivo não exista ele adiciona o header
+    if (fileExists == 0) {
+        fprintf(file, "%s\n", header);
+    }
+
+    // Adiciona nova linha
+    fprintf(file, "%dx%d,%c,%d,%lf,%lf,%lf\n", rows, cols, tipo, numThreads, init, process, end);
+    fclose(file);
+}
+
+// Metodo main que executa a multiplicação de matrizes de forma concorrente
 int main(int argc, char*argv[]) {
 
+    double startInit, finishInit, elapsedInit;
+    GET_TIME(startInit);
+
+    // Verifica argumentos passados para o programa
     if(argc < 3) {
         fprintf(stderr, "Digite: ./main <arquivoMatrixA> <arquivoMatrixB> <numThreads>\n");
         return -1;
     }
 
+    // Le a primeira matriz
     Matrix *matrixA = readMatrixFromFile(argv[1]);
     if (!matrixA) {
-        printf("Erro ao ler matrixA do arquivo\n");
+        fprintf(stderr, "Erro ao ler matrixA do arquivo\n");
         free(matrixA);
         return -2;
     }
 
+    // Le a segunda matriz
     Matrix *matrixB = readMatrixFromFile(argv[2]);
     if (!matrixB) {
-        printf("Erro ao ler matrixB do arquivo\n");
+        fprintf(stderr, "Erro ao ler matrixB do arquivo\n");
         free(matrixB);
         return -2;
     }
 
+    // Verifica se as matrizes podem ser multiplicadas
     if (matrixA->cols != matrixB->rows) {
-        printf("Erro, para a multiplicação ser possivel o numero de colunas de A deve ser igual ao numero de linhas de B.");
+        fprintf(stderr, "Erro, para a multiplicação ser possivel o numero de colunas de A deve ser igual ao numero de linhas de B.");
         return -3;
     }
 
+    // Aloca memótia para a matriz resultado
     Matrix *matrixC = malloc(sizeof(Matrix));
     if (!matrixC) {
-        printf("Erro ao alocar memoria para matrixC\n");
+        fprintf(stderr, "Erro ao alocar memoria para matrixC\n");
         free(matrixC);
         return -4;
     }
 
+    // Aloca memoria para os elementos da matriz, representados na forma de um array
     float *mArray = (float *) malloc(sizeof(float) * matrixA->rows * matrixB->cols);
     if (!mArray) {
-        printf("Erro ao alocar memoria para matrixC\n");
+        fprintf(stderr, "Erro ao alocar memoria para matrixC\n");
         free(mArray);
         return -4;
     }
@@ -189,16 +237,26 @@ int main(int argc, char*argv[]) {
     matrixC -> rows = matrixA->rows;
     matrixC -> cols = matrixB->cols;
 
+    int rows = matrixC -> rows;
+    int cols = matrixC -> cols;
+
+    GET_TIME(finishInit);
+    elapsedInit = finishInit - startInit;
+
+    printf("#Tempo (inicialização): %lf segundos\n", elapsedInit);
+
+    double startProcess, finishProcess, elapsedProcess;
+    GET_TIME(startProcess);
+
+    // Prepara as threads
     int numThreads = atoi(argv[3]);
     pthread_t tid_sistema[numThreads];
     int threads[numThreads];
 
-    struct timespec start, end;
-
-    clock_gettime(CLOCK_MONOTONIC, &start);
-
+    // Cria as threads que executaram a multiplicação de forma concorrente
     for (int i = 0; i < numThreads; i++) {
 
+        // Prepara argumentos passados para cada thread
         ThreadArgs * args = malloc(sizeof (ThreadArgs));
         threads[i] = i;
         args->id = i;
@@ -213,27 +271,39 @@ int main(int argc, char*argv[]) {
         }
     }
 
+    // Espera que as threads terminem a execução
     for (int i = 0; i < numThreads; i++) {
         pthread_join(tid_sistema[i],NULL);
     }
 
-    clock_gettime(CLOCK_MONOTONIC, &end);
+    GET_TIME(finishProcess);
+    elapsedProcess = finishProcess - startProcess;
 
-    int64_t diff = ((int64_t)end.tv_sec - (int64_t)start.tv_sec) * (int64_t) BILLION
-                   + ((int64_t)end.tv_nsec - (int64_t)start.tv_nsec);
+    printf("#Tempo (processamento): %lf segundos\n", elapsedProcess);
 
-    printf("#Tempo (concorrente): %f segundos\n", (float)  diff / BILLION);
+    double startEnd, finishEnd, elapsedEnd;
+    GET_TIME(startEnd);
 
 #ifdef PRINT
     printMatrix(matrixC);
 #endif
 
+    // Escreve matriz resultado para arquivo
     writeMatrixToFile(matrixC, "concMatrixC");
 
+    // Libera memoria alcoada anteriormente
     free(mArray);
     free(matrixA);
     free(matrixB);
     free(matrixC);
+
+    GET_TIME(finishEnd);
+    elapsedEnd = finishEnd - startEnd;
+
+    printf("#Tempo (finalização): %lf segundos\n", elapsedEnd);
+
+    // Escreve medidas de tempo em CSV
+    writeToCSV("medidasTempo.csv", 'C', numThreads, rows, cols, elapsedInit, elapsedProcess, elapsedEnd);
 
     return 0;
 }
