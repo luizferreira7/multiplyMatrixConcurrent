@@ -1,6 +1,12 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <unistd.h>
 #include "timer.h"
+
+#define F_OK 0
+
+// Caso queira imprimir as matrizes descomentar
+// #define PRINT
 
 // Estrutura usada para representar uma matriz
 typedef struct {
@@ -8,9 +14,6 @@ typedef struct {
     int cols;
     int rows;
 } Matrix;
-
-// Caso queira imprimir as matrizes descomentar
-// #define PRINT
 
 // Metodo que multiplica duas matrizes de dimensões NxM por M*K
 void multiplyMatrix(Matrix * matrixA, Matrix * matrixB, Matrix * matrixC) {
@@ -112,29 +115,33 @@ void writeMatrixToFile(Matrix * matrix, char * filename) {
     fclose(file);
 }
 
+int checkFile(char *filename) {
+    if (access(filename, F_OK) == 0) {
+        return 1;
+    }
+
+    return 0;
+}
 
 // Escreve os resultados no CSV
 void writeToCSV(char *filename, char tipo, int numThreads, int rows, int cols, double init, double process, double end) {
 
     char *header = "dimensao,tipo,threads,inicialização,processamento,finalização";
 
+    // Verifica se o arquivo existe
+    int fileExists = checkFile(filename);
+
+    // Prepara arquivo para escrita no de append
     FILE *file;
+    file = fopen(filename,"a");
 
-    // Verifica se arquivo existe
-    file = fopen(filename,"r");
-
-    // Caso não exista cria o arquivo e escreve o header
-    if (!file) {
-        file = fopen(filename, "w");
+    // Caso o arquivo não exista ele adiciona o header
+    if (fileExists == 0) {
         fprintf(file, "%s\n", header);
-        fclose(file);
     }
 
-    // Prepara o arquivo para acrescentar novas linhas
-    file = fopen(filename, "a");
-
+    // Adiciona nova linha
     fprintf(file, "%dx%d,%c,%d,%lf,%lf,%lf\n", rows, cols, tipo, numThreads, init, process, end);
-
     fclose(file);
 }
 
