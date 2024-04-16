@@ -35,12 +35,19 @@ Rode os comandos a seguir para compilar as classes necessárias
 ❯ gcc ./cods-lab3/geraMatrizBinario.c -o geraMatrizBinario
 ```
 
+Compilar para modo concorrente
 ``` bash
-gcc multiplyMatrixSequential.c -o seq  
+gcc lab3.c -o conc -Wall -DMODE=CONCURRENT
 ```
 
+Compilar para modo sequencial
 ``` bash
-gcc -pthread multiplyMatrixConcurrent.c -o conc 
+gcc lab3.c -o seq -Wall -DMODE=SEQUENTIAL
+```
+
+OBS: Caso queira visualizar as matrizes compile
+``` bash
+gcc ./cods-lab3/leMatrizBinario.c -o readMatrix
 ```
 
 1. Para criar as matrizes binarias execute:
@@ -54,7 +61,6 @@ Exemplo:
 ./geraMatrizBinario 500 500 matrizA
 ```
 
-
 2. Após gerar suas matrizes execute o seguinte comando para rodar de forma sequencial:
 ``` bash
 ./seq <matriz_a> <matriz_b> 
@@ -64,7 +70,9 @@ Exemplo:
 ``` bash
 ./seq matrizA matrizB
 ```
-3. Execute o seguinte comando para rodar de forma concorrent:
+
+3. Execute o seguinte comando para rodar de forma concorrente:
+
 ``` bash
 ./conc <matriz_a> <matriz_b> <num_threads>
 ```
@@ -72,4 +80,26 @@ Exemplo:
 Exemplo:
 ``` bash
 ./conc matrizA matrizB 4
+```
+
+4. Para verificar a corretude um diff, caso retorne vazio as matrizes são iguais:
+
+``` bash
+diff <matriz_a> <matriz_b>
+```
+
+Exemplo:
+
+``` bash
+diff matrizA matrizB
+```
+
+OBS: Se quiser ler as amtrizes execute:
+``` bash
+./read <matriz_a>
+```
+
+Exemplo:
+``` bash
+./read matrizA
 ```
